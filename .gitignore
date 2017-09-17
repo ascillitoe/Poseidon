@@ -1,0 +1,6 @@
+*.o
+*.mod
+MPI/
+MPI_OpenACC/
+MPI_OpenMP/
+CUDA/

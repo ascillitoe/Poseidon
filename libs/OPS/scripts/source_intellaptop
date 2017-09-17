@@ -1,0 +1,30 @@
+#A rough example of environmental variables for compiling with Intel compilers
+
+#unset and set defaults
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games
+unset LD_LIBRARY_PATH
+. ~/.bashrc
+
+#OPS specifics
+export OPS_COMPILER=intel
+export OPS_INSTALL_PATH=/home/ash/Documents/Projects/CFDturbo/libs/OPS/ops
+
+#CUDA and NVIDIA OpenCL
+export PATH=/usr/local/cuda/bin:$PATH
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+export CUDA_INSTALL_PATH=/usr/local/cuda/
+export OPENCL_INSTALL_PATH=/usr/local/cuda/
+
+#Intel MPI and Compilers
+export MPI_INSTALL_PATH=/opt/intel/impi/2018.0.128/intel64
+source /opt/intel/bin/compilervars.sh intel64
+source /opt/intel/impi/2018.0.128/bin64/mpivars.sh intel64
+
+export INTEL_PATH=/opt/intel
+export MPICH_CXX=/opt/intel/bin/icpc
+export MPICH_CC=/opt/intel/bin/icc
+export MPICH_F90=/opt/intel/bin/ifort
+
+#Intel based HDF5
+export HDF5_INSTALL_PATH=/home/ash/Documents/Projects/CFDturbo/libs/hdf5-1.8.19
+export LD_LIBRARY_PATH=/home/ash/Documents/Projects/CFDturbo/libs/hdf5-1.8.19/lib:$LD_LIBRARY_PATH
