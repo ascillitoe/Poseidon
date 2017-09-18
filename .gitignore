@@ -4,3 +4,8 @@ MPI/
 MPI_OpenACC/
 MPI_OpenMP/
 CUDA/
+libs
+bin
+*_ops.F90
+reports/
+*.h5
