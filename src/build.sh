@@ -1,4 +1,5 @@
 source ../libs/OPS/scripts/source_intellaptop
-../libs/OPS/translator/python/fortran/ops_fortran.py main.F90
- make
+make clean
+../libs/OPS/translator/python/fortran/ops_fortran.py main.F90 periodics.F90
+make
  mv *.optrpt reports/

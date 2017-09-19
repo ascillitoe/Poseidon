@@ -83,60 +83,87 @@ FMODS_OPENACC = -I$(F_OPS_MOD)/openacc -I$(F_OPS_INC)
 
 all: $(TARGETS)
 
-cfd4t_seq: main_ops.F90 constants.F90
-	$(FC) $(OPT) $(FMODS) -c constants.F90 ./MPI/initialise_kernel_seq_kernel.F90  \
-	main_ops.F90
-	$(MPIF90) $(OPT) $(FFLAGS) $(FLINK) main_ops.o constants.o initialise_kernel_seq_kernel.o \
-	-o ../bin/cfd4t_seq -lops_for_seq -lops_hdf5 $(HDF5_LIB)
+cfd4t_seq: main_ops.F90 periodics_ops.F90 constants.F90
+	$(FC) $(OPT) $(FMODS) -c constants.F90 ./MPI/initialise_kernel_seq_kernel.F90                         \
+	./MPI/conres_kernel_seq_kernel.F90 ./MPI/momres_kernel_seq_kernel.F90                                 \
+	./MPI/energyres_kernel_seq_kernel.F90 ./MPI/save_kernel_seq_kernel.F90                                       \
+	./MPI/iper1_kernel_seq_kernel.F90 ./MPI/iper2_kernel_seq_kernel.F90                                   \
+	./MPI/jper1_kernel_seq_kernel.F90 ./MPI/jper2_kernel_seq_kernel.F90                                   \
+	./MPI/kper1_kernel_seq_kernel.F90 ./MPI/kper2_kernel_seq_kernel.F90                                   \
+	main_ops.F90 periodics_ops.F90
+	$(MPIF90) $(OPT) $(FFLAGS) $(FLINK) main_ops.o periodics_ops.o constants.o                            \
+	initialise_kernel_seq_kernel.o conres_kernel_seq_kernel.o momres_kernel_seq_kernel.o                  \
+	energyres_kernel_seq_kernel.o save_kernel_seq_kernel.o                                                \
+	iper1_kernel_seq_kernel.o iper2_kernel_seq_kernel.o                                                   \
+	jper1_kernel_seq_kernel.o jper2_kernel_seq_kernel.o                                                   \
+	kper1_kernel_seq_kernel.o kper2_kernel_seq_kernel.o                                                   \
+	 -o ../bin/cfd4t_seq -lops_for_seq -lops_hdf5 $(HDF5_LIB)
 
 cfd4t_openmp: main_ops.F90 constants.F90
-	$(FC) $(OPT) $(FMODS) $(OMPFLAGS) -c constants.F90 ./MPI_OpenMP/initialise_kernel_omp_kernel.F90 \
+	$(FC) $(OPT) $(FMODS) $(OMPFLAGS) -c constants.F90 ./MPI_OpenMP/initialise_kernel_omp_kernel.F90      \
+	./MPI_OpenMP/dsdx_kernel_omp_kernel.F90 ./MPI_OpenMP/dvdx_kernel_omp_kernel.F90                       \
 	main_ops.F90
-	$(MPIF90) $(OPT) $(FLINK) $(FFLAGS) $(OMPFLAGS) main_ops.o constants.o initialise_kernel_omp_kernel.o \
+	$(MPIF90) $(OPT) $(FLINK) $(FFLAGS) $(OMPFLAGS) main_ops.o constants.o                                \
+	initialise_kernel_omp_kernel.o dsdx_kernel_omp_kernel.o dvdx_kernel_omp_kernel.o                      \
     -o ../bin/cfd4t_openmp -lops_for_seq -lops_hdf5 $(HDF5_LIB)
 
 cfd4t_cuda: main_ops.F90 constants.F90
 ifeq ($(OPS_COMPILER),pgi)
-	$(FC) $(OPT) $(FMODS) $(CUDAFOR) -c constants.F90 ./CUDA/initialise_kernel_cuda_kernel.CUF \
+	$(FC) $(OPT) $(FMODS) $(CUDAFOR) -c constants.F90 ./CUDA/initialise_kernel_cuda_kernel.CUF            \
+	./CUDA/dsdx_kernel_cuda_kernel.CUF ./CUDA/dvdx_kernel_cuda_kernel.CUF                                 \
 	main_ops.F90
 	$(MPIF90) $(OPT) $(FLINK) $(FFLAGS) $(CUDAFOR) main_ops.o constants.o initialise_kernel_cuda_kernel.o \
+	dsdx_kernel_cuda_kernel.o dvdx_kernel_cuda_kernel.o                                                   \
     -o cfd4t_cuda -lops_for_cuda -lops_hdf5 $(HDF5_LIB)
 else
 	@echo "cuda cannot be built with $(OPS_COMPILER) compilers .. requires a CUDA FORTRAN compiler (e.g. pgi)"
 endif
 
 cfd4t_mpi: main_ops.F90 constants.F90
-	$(MPIF90) $(OPT) $(FMODS) -DOPS_MPI -c constants.F90 ./MPI/initialise_kernel_seq_kernel.F90 \
+	$(MPIF90) $(OPT) $(FMODS) -DOPS_MPI -c constants.F90 ./MPI/initialise_kernel_seq_kernel.F90           \
+	./MPI/dsdx_kernel_seq_kernel.F90 ./MPI/dvdx_kernel_seq_kernel.F90                                     \
 	main_ops.F90
-	$(MPIF90) $(OPT) $(MPIFLAGS) $(FLINK) -DOPS_MPI main_ops.o constants.o initialise_kernel_seq_kernel.o \
+	$(MPIF90) $(OPT) $(MPIFLAGS) $(FLINK) -DOPS_MPI main_ops.o constants.o                                \
+	initialise_kernel_seq_kernel.o dsdx_kernel_seq_kernel.o dvdx_kernel_seq_kernel.o                      \
 	-o ../bin/cfd4t_mpi -lops_for_mpi $(HDF5_LIB)
 
 cfd4t_mpi_openmp: main_ops.F90 constants.F90
-	$(MPIF90) $(OPT) $(FMODS) $(OMPFLAGS) -DOPS_MPI -c constants.F90 ./MPI_OpenMP/initialise_kernel_omp_kernel.F90 \
+	$(MPIF90) $(OPT) $(FMODS) $(OMPFLAGS) -DOPS_MPI -c constants.F90                                      \
+	./MPI_OpenMP/initialise_kernel_omp_kernel.F90 ./MPI_OpenMP/dsdx_kernel_omp_kernel.F90                 \
+	./MPI_OpenMP/dvdx_kernel_omp_kernel.F90                                                               \
 	main_ops.F90
-	$(MPIF90) $(OPT) $(MPIFLAGS) $(FLINK) $(OMPFLAGS) -DOPS_MPI main_ops.o constants.o initialise_kernel_omp_kernel.o \
+	$(MPIF90) $(OPT) $(MPIFLAGS) $(FLINK) $(OMPFLAGS) -DOPS_MPI main_ops.o constants.o                    \
+	initialise_kernel_omp_kernel.o dsdx_kernel_omp_kernel.o dvdx_kernel_omp_kernel.o                      \
     -o ../bin/cfd4t_mpi_openmp -lops_for_mpi $(HDF5_LIB)
 
 cfd4t_mpi_cuda: main_ops.F90 constants.F90
 ifeq ($(OPS_COMPILER),pgi)
 	$(MPIF90) $(OPT) $(FMODS) -DOPS_MPI $(CUDAFOR) -c constants.F90 ./CUDA/initialise_kernel_cuda_kernel.CUF \
 	main_ops.F90
-	$(MPIF90) $(OPT) $(MPIFLAGS) $(FLINK) -DOPS_MPI $(CUDAFOR) main_ops.o constants.o initialise_kernel_cuda_kernel.o \
+	./CUDA/dsdx_kernel_cuda_kernel.CUF ./CUDA/dvdx_kernel_cuda_kernel.CUF                                    \
+	$(MPIF90) $(OPT) $(MPIFLAGS) $(FLINK) -DOPS_MPI $(CUDAFOR) main_ops.o constants.o                        \
+	initialise_kernel_cuda_kernel.o                                                                          \
+	dsdx_kernel_cuda_kernel.o dvdx_kernel_cuda_kernel.o                                                      \
     -o cfd4t_mpi_cuda -lops_for_mpi_cuda $(HDF5_LIB)
 else
 	@echo "cuda cannot be built with $(OPS_COMPILER) compilers .. requires a CUDA FORTRAN compiler (e.g. pgi)"
 endif
 
 cfd4t_openacc: main_ops.F90 constants.F90
-	$(FC) $(OPT) $(FMODS_OPENACC) $(OpenACCFLAGS) -c constants.F90 ./MPI_OpenACC/initialise_kernel_openacc_kernel.F90 \
+	$(FC) $(OPT) $(FMODS_OPENACC) $(OpenACCFLAGS) -c constants.F90                                          \
+	./MPI_OpenACC/initialise_kernel_openacc_kernel.F90                                                      \
+	./MPI_OpenACC/dsdx_kernel_openacc_kernel.F90 ./MPI_OpenACC/dvdx_kernel_openacc_kernel.F90               \
 	main_ops.F90
 	$(MPIF90) $(OPT) $(FLINK) $(OpenACCFLAGS) main_ops.o constants.o initialise_kernel_openacc_kernel.o \
     -o ../bin/cfd4t_openacc -lops_for_cuda -lops_hdf5 $(HDF5_LIB)
 
 cfd4t_mpi_openacc: main_ops.F90 constants.F90
-	$(MPIF90) $(OPT) $(FMODS_OPENACC) $(OpenACCFLAGS) -DOPS_MPI -c constants.F90 ./MPI_OpenACC/initialize_kernel_openacc_kernel.F90 \
+	$(MPIF90) $(OPT) $(FMODS_OPENACC) $(OpenACCFLAGS) -DOPS_MPI -c constants.F90                            \
+	./MPI_OpenACC/initialise_kernel_openacc_kernel.F90                                                      \
+	./MPI_OpenACC/dsdx_kernel_openacc_kernel.F90 ./MPI_OpenACC/dvdx_kernel_openacc_kernel.F90               \
 	main_ops.F90
 	$(MPIF90) $(OPT) $(FLINK) $(OpenACCFLAGS) -DOPS_MPI main_ops.o constants.o initialise_kernel_openacc_kernel.o \
+	dsdx_kernel_cuda_kernel.o dvdx_kernel_cuda_kernel.o                                                      \
     -o ../bin/cfd4t_mpi_openacc -lops_for_mpi_cuda $(HDF5_LIB)
 
 clean:

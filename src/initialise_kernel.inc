@@ -1,17 +1,27 @@
-subroutine initialise_kernel( x, rho, rhou, rhov, rhow, Et, idx)
+subroutine initialise_kernel( x, rho, rhou, Et, idx)
   implicit none
   integer (kind=4), DIMENSION(3), INTENT(IN) :: idx
-  real (kind=8), DIMENSION(3) :: x
-  real (kind=8), DIMENSION(1) :: rho, rhou, rhov, rhow, Et
+  real (kind=8), DIMENSION(3) :: x, rhou
+  real (kind=8), DIMENSION(1) :: rho, Et
 
-  x(OPS_ACC_MD1(1,0,0,0)) = dx * (idx(1)-1.0_8)
-  x(OPS_ACC_MD1(2,0,0,0)) = dy * (idx(2)-1.0_8)
-  x(OPS_ACC_MD1(3,0,0,0)) = dz * (idx(3)-1.0_8)
+  ! x,y,z Coords
+  x(OPS_ACC_MD1(1,0,0,0)) = xmin + dx * (idx(1)-1.0_8)
+  x(OPS_ACC_MD1(2,0,0,0)) = ymin + dy * (idx(2)-1.0_8)
+  x(OPS_ACC_MD1(3,0,0,0)) = zmin + dz * (idx(3)-1.0_8)
+  
+  ! rho
+  rho(OPS_ACC2(0,0,0))  = x(OPS_ACC_MD1(1,0,0,0)) !1.177_8
 
-  rho(OPS_ACC2(0,0,0))  = 1.177_8
-  rhou(OPS_ACC3(0,0,0)) = x(OPS_ACC_MD1(1,0,0,0)) 
-  rhov(OPS_ACC4(0,0,0)) = x(OPS_ACC_MD1(2,0,0,0)) 
-  rhoW(OPS_ACC5(0,0,0)) = x(OPS_ACC_MD1(3,0,0,0)) 
-  Et(OPS_ACC6(0,0,0))   = 0.0_8
+  ! rho*u
+  rhou(OPS_ACC_MD3(1,0,0,0)) = x(OPS_ACC_MD1(1,0,0,0)) 
+
+  ! rho*v
+  rhou(OPS_ACC_MD3(2,0,0,0)) = x(OPS_ACC_MD1(2,0,0,0)) 
+
+  ! rho*w
+  rhou(OPS_ACC_MD3(3,0,0,0)) = x(OPS_ACC_MD1(3,0,0,0)) 
+
+  ! Et
+  Et(OPS_ACC4(0,0,0))   = 0.0_8
 
 end subroutine

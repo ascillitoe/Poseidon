@@ -17,7 +17,10 @@ MODULE OPS_CONSTANTS
 
 !   ---- Runge-Kutta ---------------------------------------------------------
     real(8),constant :: alfas, betas, cfl, totaltime
+    real(8) simtime
+
     integer,constant :: nrk
+    integer nt
 
 #else
 
@@ -27,8 +30,8 @@ MODULE OPS_CONSTANTS
     integer :: xhalo, yhalo, zhalo
 
 !   ---- Runge-Kutta ---------------------------------------------------------
-    real(8) :: alfas, betas, cfl, totaltime
-    integer :: nrk
+    real(8) :: alfas, betas, cfl, totaltime, simtime
+    integer :: nrk, nt
 
 #endif
 
