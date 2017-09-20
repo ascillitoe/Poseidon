@@ -9,3 +9,4 @@ bin
 *_ops.F90
 reports/
 *.h5
+*.dat

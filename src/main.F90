@@ -38,6 +38,10 @@ program main
                                       1,0,0, -1, 0, 0, &
                                       0,1,0,  0,-1, 0, &
                                       0,0,1,  0, 0,-1 /
+  integer S3D_000_0P1_array(12) / 0,0,0,  & ! 2nd order i-i+1
+                                  1,0,0,  &
+                                  0,1,0,  &
+                                  0,0,1  /
   integer S1D_iper1_array(6) /  0,0,0,   5, 0, 0 /   ! periodic at i=0
   integer S1D_iper2_array(6) /  0,0,0,  -5, 0, 0 /   ! periodic at i=I+1
   integer S1D_jper1_array(6) /  0,0,0,   0, 5, 0 /   ! periodic at j=0
@@ -47,6 +51,7 @@ program main
 
   type(ops_stencil) :: S1D_000
   type(ops_stencil) :: S3D_000_0M1_0P1
+  type(ops_stencil) :: S3D_000_0P1
   type(ops_stencil) :: S1D_iper1
   type(ops_stencil) :: S1D_iper2
   type(ops_stencil) :: S1D_jper1
@@ -100,6 +105,9 @@ program main
   dy = (ymax-ymin)/(size(2)-1.0_8)
   dz = (zmax-zmin)/(size(3)-1.0_8)
 
+  totaltime = 10.0_8
+  cfl       = 1.0_8
+
 ! ---- Initialisation --------------------------------------------------------
 ! OPS initialisation
   call ops_init(1)
@@ -111,6 +119,7 @@ program main
 ! declare stencils
   call ops_decl_stencil( 3,  1, S1D_000_array        , S1D_000        , "000")
   call ops_decl_stencil( 3,  7, S3D_000_0M1_0P1_array, S3D_000_0M1_0P1, "000:100:-100:010:0-10:001:00-1")
+  call ops_decl_stencil( 3,  4, S3D_000_0P1_array, S3D_000_0P1, "000:100:010:001")
   call ops_decl_stencil( 3,  2, S1D_iper1_array      , S1D_iper1      , "000:I00")
   call ops_decl_stencil( 3,  2, S1D_iper2_array      , S1D_iper2      , "000:-I00")
   call ops_decl_stencil( 3,  2, S1D_jper1_array      , S1D_jper1      , "000:0J0")
@@ -171,20 +180,19 @@ program main
   iter_range(5) = 1
   iter_range(6) = size(3)
 
-  totaltime = 0.0_8
   nt = 1
   do while (simtime.le.totaltime)
-    write(line,'(a,i8,2g18.9)') NEW_LINE('A') // 'nt, simtime, totaltime =', nt, simtime, totaltime
+    write(line,'(a,i8,2g18.9)') NEW_LINE('A') // 'nt, simtime, dt =', nt, simtime, dt
     call ops_printf(line)
    
-!!   Find timestep based on CFL condition
-!!   ------------------------------------
-!    dt = 0.0_8 ! TODO set big or small?
-!    call ops_par_loop(dt_kernel, "dt_kernel", grid, 3, iter_range,           &
-!                         ops_arg_dat(  rho, 1, S1D_000, "real(8)",OPS_READ), &
-!                         ops_arg_dat( rhou, 3, S1D_000, "real(8)",OPS_READ), &
-!                      ops_arg_reduce(dtmin, 1,          "real(8)", OPS_INC)  ) ! TODO OPS_INC for finding min?
-!    call ops_reduction_result(dtmin, dt)
+!   Find timestep based on CFL condition
+!   ------------------------------------
+    call ops_par_loop(calc_dt_kernel, "calc_dt_kernel", grid, 3, iter_range, &
+                         ops_arg_dat(    x, 3, S3D_000_0P1, "real(8)",OPS_READ), &
+                         ops_arg_dat(  rho, 1, S3D_000_0P1, "real(8)",OPS_READ), &
+                         ops_arg_dat( rhou, 3, S3D_000_0P1, "real(8)",OPS_READ), &
+                         ops_arg_reduce(dtmin, 1,          "real(8)", OPS_MIN)  )
+    call ops_reduction_result(dtmin, dt)
 
 !   Save variables to start values before RK loop
 !   ---------------------------------------------
