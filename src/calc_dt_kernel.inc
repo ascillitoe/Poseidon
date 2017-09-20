@@ -1,12 +1,11 @@
-subroutine calc_dt_kernel( x, rho, rhou, dtmin,idx)
+subroutine calc_dt_kernel( x, rho, rhou, dtmin)
 
   implicit none
-  integer (kind=4), DIMENSION(3), INTENT(IN) :: idx
   real (kind=8), DIMENSION(3), INTENT(IN) :: x, rhou
   real (kind=8), DIMENSION(1), INTENT(IN) :: rho
   real (kind=8), DIMENSION(1) :: dtmin
 
-  real (kind=8) uav(3),dti, dtj, dtk
+  real (kind=8) uav(3), di, dj, dk, dti, dtj, dtk
   real (kind=8) soundspeed   ! TODO - calc soundspeed properly
   integer d
 
@@ -14,21 +13,18 @@ subroutine calc_dt_kernel( x, rho, rhou, dtmin,idx)
 
   ! Average velocities across stencil
   do d = 1,3
-    uav(d) = 0.5_8*( (rhou(OPS_ACC_MD3(d,1,0,0))/rho(OPS_ACC2(1,0,0))) + &
-                     (rhou(OPS_ACC_MD3(d,0,0,0))/rho(OPS_ACC2(0,0,0)))   )
+    uav(d)  = rhou(OPS_ACC_MD3(d,0,0,0))/rho(OPS_ACC2(0,0,0))
   enddo
 
-  ! Timestep for each stencil
-  dti = cfl*(x(OPS_ACC_MD1(1,1,0,0))-x(OPS_ACC_MD1(1,0,0,0))) / &
-        (abs(uav(1))+soundspeed)  ! TODO - where to calc speed of sound
-  dtj = cfl*(x(OPS_ACC_MD1(2,0,1,0))-x(OPS_ACC_MD1(2,0,0,0))) / &
-        (abs(uav(2))+soundspeed)  ! TODO - where to calc speed of sound
-  dtk = cfl*(x(OPS_ACC_MD1(3,0,0,1))-x(OPS_ACC_MD1(3,0,0,0))) / &
-        (abs(uav(3))+soundspeed)  ! TODO - where to calc speed of sound
+  ! Grid spacings
+  di = 0.5_8*(x(OPS_ACC_MD1(1,1,0,0))-x(OPS_ACC_MD1(1,-1, 0, 0)))
+  dj = 0.5_8*(x(OPS_ACC_MD1(2,0,1,0))-x(OPS_ACC_MD1(2, 0,-1, 0)))
+  dk = 0.5_8*(x(OPS_ACC_MD1(3,0,0,1))-x(OPS_ACC_MD1(3, 0, 0,-1)))
 
-  write(*,'(4f17.9,3i2)') rhou(OPS_ACC_MD3(1,1,0,0)),rho(OPS_ACC2(1,0,0)), &
-                      rhou(OPS_ACC_MD3(1,0,0,0)),rho(OPS_ACC2(0,0,0)), &
-                      idx
+  ! Timestep for each stencil
+  dti = cfl*di / (abs(uav(1))+soundspeed)  ! TODO - where to calc speed of sound
+  dtj = cfl*dj / (abs(uav(2))+soundspeed)  ! TODO - where to calc speed of sound
+  dtk = cfl*dk / (abs(uav(3))+soundspeed)  ! TODO - where to calc speed of sound
 
   ! Take min dt from i,j,k directions
   dtmin = min(dtmin,min(dti,dtj,dtk))

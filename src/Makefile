@@ -87,14 +87,12 @@ cfd4t_seq: main_ops.F90 constants.F90
 	$(FC) $(OPT) $(FMODS) -c constants.F90 ./MPI/initialise_kernel_seq_kernel.F90                         \
 	./MPI/conres_kernel_seq_kernel.F90 ./MPI/momres_kernel_seq_kernel.F90                                 \
 	./MPI/energyres_kernel_seq_kernel.F90 ./MPI/save_kernel_seq_kernel.F90                                \
-	./MPI/calc_dt_kernel_seq_kernel.F90 ./MPI/min_dt_kernel_seq_kernel.F90                                \
-	./MPI/calc_dt2_kernel_seq_kernel.F90                                                                  \
+	./MPI/calc_dt_kernel_seq_kernel.F90                                                                   \
 	main_ops.F90
 	$(MPIF90) $(OPT) $(FFLAGS) $(FLINK) main_ops.o constants.o                                            \
 	initialise_kernel_seq_kernel.o conres_kernel_seq_kernel.o momres_kernel_seq_kernel.o                  \
 	energyres_kernel_seq_kernel.o save_kernel_seq_kernel.o                                                \
-	calc_dt_kernel_seq_kernel.o min_dt_kernel_seq_kernel.o                                                \
-	calc_dt2_kernel_seq_kernel.o                                                                          \
+	calc_dt_kernel_seq_kernel.o                                                                           \
 	 -o ../bin/cfd4t_seq -lops_for_seq -lops_hdf5 $(HDF5_LIB)
 
 cfd4t_openmp: main_ops.F90 constants.F90
@@ -121,14 +119,12 @@ cfd4t_mpi: main_ops.F90 constants.F90
 	$(MPIF90) $(OPT) $(FMODS) -DOPS_MPI -c constants.F90 ./MPI/initialise_kernel_seq_kernel.F90           \
 	./MPI/conres_kernel_seq_kernel.F90 ./MPI/momres_kernel_seq_kernel.F90                                 \
 	./MPI/energyres_kernel_seq_kernel.F90 ./MPI/save_kernel_seq_kernel.F90                                \
-	./MPI/calc_dt_kernel_seq_kernel.F90 ./MPI/min_dt_kernel_seq_kernel.F90                                \
-	./MPI/calc_dt2_kernel_seq_kernel.F90                                                                  \
+	./MPI/calc_dt_kernel_seq_kernel.F90                                                                   \
 	main_ops.F90
 	$(MPIF90) $(OPT) $(MPIFLAGS) $(FLINK) -DOPS_MPI main_ops.o constants.o                                \
 	initialise_kernel_seq_kernel.o conres_kernel_seq_kernel.o momres_kernel_seq_kernel.o                  \
 	energyres_kernel_seq_kernel.o save_kernel_seq_kernel.o                                                \
-	calc_dt_kernel_seq_kernel.o min_dt_kernel_seq_kernel.o                                                \
-	calc_dt2_kernel_seq_kernel.o                                                                          \
+	calc_dt_kernel_seq_kernel.o                                                                           \
 	-o ../bin/cfd4t_mpi -lops_for_mpi $(HDF5_LIB)
 
 cfd4t_mpi_openmp: main_ops.F90 constants.F90
