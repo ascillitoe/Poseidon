@@ -42,29 +42,17 @@ program main
                                   1,0,0,  &
                                   0,1,0,  &
                                   0,0,1  /
-  integer S1D_iper1_array(6) /  0,0,0,   5, 0, 0 /   ! periodic at i=0
-  integer S1D_iper2_array(6) /  0,0,0,  -5, 0, 0 /   ! periodic at i=I+1
-  integer S1D_jper1_array(6) /  0,0,0,   0, 5, 0 /   ! periodic at j=0
-  integer S1D_jper2_array(6) /  0,0,0,   0,-5, 0 /   ! periodic at j=I+1
-  integer S1D_kper1_array(6) /  0,0,0,   0, 0, 5 /   ! periodic at k=0
-  integer S1D_kper2_array(6) /  0,0,0,   0, 0,-5 /   ! periodic at k=I+1
 
   type(ops_stencil) :: S1D_000
   type(ops_stencil) :: S3D_000_0M1_0P1
   type(ops_stencil) :: S3D_000_0P1
-  type(ops_stencil) :: S1D_iper1
-  type(ops_stencil) :: S1D_iper2
-  type(ops_stencil) :: S1D_jper1
-  type(ops_stencil) :: S1D_jper2
-  type(ops_stencil) :: S1D_kper1
-  type(ops_stencil) :: S1D_kper2
 
 ! ops datasets
   type(ops_dat) :: x
   type(ops_dat) :: rho_s, rhou_s, Et_s
   type(ops_dat) :: rho, rhou, Et
   type(ops_dat) :: rho_res, rhou_res, Et_res
-  type(ops_dat) :: mul, mut
+  type(ops_dat) :: mul, mut, work
 
 ! ops_reduction
   type(ops_reduction) :: dtmin
@@ -72,15 +60,20 @@ program main
 ! iteration ranges
   integer iter_range(6)
 
-! vars for halo_depths
+! vars for halo_depths (for inter-block halos)
   integer d_p(3) / 1, 1, 1/     !max halo depths for the dat in the possitive direction
   integer d_m(3) /-1,-1,-1/  !max halo depths for the dat in the negative direction
 
 ! Mesh size
-  integer size(3) / 6,6,6 /
+  integer size(3) / 4,4,4 /
 
 ! base
   integer base(3) /1,1,1/ ! this is in fortran indexing
+
+! halos
+  type(ops_halo), DIMENSION(18) :: halo_array
+  type(ops_halo_group) :: halogrp_per
+  integer halo_iter(3), base_from(3), base_to(3), dir_from(3), dir_to(3)
 
 ! null array 
   real(kind=c_double), dimension(:), allocatable :: temp
@@ -90,7 +83,7 @@ program main
   real(kind=c_double) :: endTime = 0
 
 ! Local variables
-  real(8) dt
+  real(8) dt, dt2
   character*132 line
 
 ! Initialise constants
@@ -105,7 +98,7 @@ program main
   dy = (ymax-ymin)/(size(2)-1.0_8)
   dz = (zmax-zmin)/(size(3)-1.0_8)
 
-  totaltime = 10.0_8
+  totaltime = 0.0_8
   cfl       = 1.0_8
 
 ! ---- Initialisation --------------------------------------------------------
@@ -120,12 +113,6 @@ program main
   call ops_decl_stencil( 3,  1, S1D_000_array        , S1D_000        , "000")
   call ops_decl_stencil( 3,  7, S3D_000_0M1_0P1_array, S3D_000_0M1_0P1, "000:100:-100:010:0-10:001:00-1")
   call ops_decl_stencil( 3,  4, S3D_000_0P1_array, S3D_000_0P1, "000:100:010:001")
-  call ops_decl_stencil( 3,  2, S1D_iper1_array      , S1D_iper1      , "000:I00")
-  call ops_decl_stencil( 3,  2, S1D_iper2_array      , S1D_iper2      , "000:-I00")
-  call ops_decl_stencil( 3,  2, S1D_jper1_array      , S1D_jper1      , "000:0J0")
-  call ops_decl_stencil( 3,  2, S1D_jper2_array      , S1D_jper2      , "000:0-J0")
-  call ops_decl_stencil( 3,  2, S1D_kper1_array      , S1D_kper1      , "000:00K")
-  call ops_decl_stencil( 3,  2, S1D_kper2_array      , S1D_kper2      , "000:00-K")
 
   call ops_decl_dat(grid, 3, size, base, d_m, d_p, temp,     x, "real(8)",     "x")
 
@@ -143,6 +130,56 @@ program main
 
   call ops_decl_dat(grid, 1, size, base, d_m, d_p, temp,  mul, "real(8)",  "mul")
   call ops_decl_dat(grid, 1, size, base, d_m, d_p, temp,  mut, "real(8)",  "mut")
+  call ops_decl_dat(grid, 1, size, base, d_m, d_p, temp, work, "real(8)", "work")
+
+! declare halos for periodics
+! i-dir periodics: i=I-1 to i=0  and  i=2 to i=I+1
+  halo_iter(1:3)  = (/         1,size(2),size(3) /)
+  base_from(1:3)  = (/         2,      1,      1 /)
+  base_to(1:3)    = (/ size(1)+1,      1,      1 /)
+  dir_from(1:3)   = (/         1,      2,      3 /)
+  dir_to(1:3)     = (/         1,      2,      3 /)
+  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(1))
+  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(2))
+  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(3))
+  base_from(1) = size(1)-1
+  base_to(1)   = 0
+  call ops_decl_halo( rho,  rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(4))
+  call ops_decl_halo(rhou, rhou, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(5))
+  call ops_decl_halo(  Et,   Et, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(6))
+
+! j-dir periodics: j=J-1 to j=0  and  j=2 to j=J+1
+  halo_iter(1:3)  = (/ size(1),        1,size(3) /)
+  base_from(1:3)  = (/       1,        2,      1 /)
+  base_to(1:3)    = (/       1,size(2)+1,      1 /)
+  dir_from(1:3)   = (/       1,        2,      3 /)
+  dir_to(1:3)     = (/       1,        2,      3 /)
+  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(7))
+  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(8))
+  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(9))
+  base_from(2) = size(2)-1
+  base_to(2)   = 0
+  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(10))
+  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(11))
+  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(12))
+
+! k-dir periodics: k=K-1 to k=0  and  k=2 to k=K+1
+  halo_iter(1:3)  = (/size(1),size(2),        1 /)
+  base_from(1:3)  = (/      1,      1,        2 /)
+  base_to(1:3)    = (/      1,      1,size(3)+1 /)
+  dir_from(1:3)   = (/      1,      2,        3 /)
+  dir_to(1:3)     = (/      1,      2,        3 /)
+  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(13))
+  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(14))
+  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(15))
+  base_from(3) = size(3)-1
+  base_to(3)   = 0
+  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(16))
+  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(17))
+  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(18))
+
+
+  call ops_decl_halo_group(18,halo_array, halogrp_per)
 
  !reduction handle for dtmin
   call ops_decl_reduction_handle(8, dtmin, "real(8)", "dtmin")
@@ -153,12 +190,8 @@ program main
 ! -----------------------------------------------------------------------------
 ! Initialise mesh and flowfield (for now...)
 ! -----------------------------------------------------------------------------
-  iter_range(1) = 0
-  iter_range(2) = size(1)+1
-  iter_range(3) = 0
-  iter_range(4) = size(2)+1
-  iter_range(5) = 0
-  iter_range(6) = size(3)+1
+  iter_range(1:6) = (/ 0,size(1)+1, 0,size(2)+1, 0,size(3)+1 /)
+
   call ops_par_loop(initialise_kernel, "initialise_kernel", grid, 3, iter_range, &
                      ops_arg_dat(   x, 3, S1D_000, "real(8)", OPS_WRITE), &
                      ops_arg_dat( rho, 1, S1D_000, "real(8)", OPS_WRITE), &
@@ -173,16 +206,10 @@ program main
   ! start timer
   call ops_timers(startTime)
 
-  iter_range(1) = 1
-  iter_range(2) = size(1)
-  iter_range(3) = 1
-  iter_range(4) = size(2)
-  iter_range(5) = 1
-  iter_range(6) = size(3)
-
+  iter_range(1:6) = (/ 1,size(1), 1,size(2), 1,size(3) /)
   nt = 1
   do while (simtime.le.totaltime)
-    write(line,'(a,i8,2g18.9)') NEW_LINE('A') // 'nt, simtime, dt =', nt, simtime, dt
+    write(line,'(a,i8,3g18.9)') NEW_LINE('A') // 'nt, simtime, dt =', nt, simtime, dt, dt2
     call ops_printf(line)
    
 !   Find timestep based on CFL condition
@@ -191,8 +218,21 @@ program main
                          ops_arg_dat(    x, 3, S3D_000_0P1, "real(8)",OPS_READ), &
                          ops_arg_dat(  rho, 1, S3D_000_0P1, "real(8)",OPS_READ), &
                          ops_arg_dat( rhou, 3, S3D_000_0P1, "real(8)",OPS_READ), &
-                         ops_arg_reduce(dtmin, 1,          "real(8)", OPS_MIN)  )
+                         ops_arg_reduce(dtmin, 1,          "real(8)", OPS_MIN),  &
+                         ops_arg_idx())
+
     call ops_reduction_result(dtmin, dt)
+
+    call ops_par_loop(calc_dt2_kernel, "calc_dt2_kernel", grid, 3, iter_range, &
+                         ops_arg_dat(    x, 3, S3D_000_0P1, "real(8)", OPS_READ), &
+                         ops_arg_dat(  rho, 1, S3D_000_0P1, "real(8)", OPS_READ), &
+                         ops_arg_dat( rhou, 3, S3D_000_0P1, "real(8)", OPS_READ), &
+                         ops_arg_dat( work, 1,     S1D_000, "real(8)",OPS_WRITE), )
+
+    call ops_par_loop(min_dt_kernel, "min_dt_kernel", grid, 3, iter_range,    &
+                         ops_arg_dat( work, 1, S1D_000, "real(8)", OPS_READ), &
+                         ops_arg_reduce(dtmin, 1,          "real(8)", OPS_MIN) )
+    call ops_reduction_result(dtmin, dt2)
 
 !   Save variables to start values before RK loop
 !   ---------------------------------------------
@@ -210,8 +250,7 @@ program main
 
 !     Apply periodic boundary conditions
 !     ----------------------------------
-      call periodics(grid,size,S1D_iper1,S1D_iper2,S1D_jper1,  &
-                     S1D_jper2,S1D_kper1,S1D_kper2,rho,rhou,Et )
+!      call ops_halo_transfer(halogrp_per)
 
 !     Calculate residuals
 !     -------------------

@@ -1,10 +1,9 @@
-subroutine calc_dt_kernel( x, rho, rhou, dtmin,idx)
+subroutine calc_dt2_kernel( x, rho, rhou, work)
 
   implicit none
-  integer (kind=4), DIMENSION(3), INTENT(IN) :: idx
   real (kind=8), DIMENSION(3), INTENT(IN) :: x, rhou
   real (kind=8), DIMENSION(1), INTENT(IN) :: rho
-  real (kind=8), DIMENSION(1) :: dtmin
+  real (kind=8), DIMENSION(1) :: work
 
   real (kind=8) uav(3),dti, dtj, dtk
   real (kind=8) soundspeed   ! TODO - calc soundspeed properly
@@ -26,11 +25,7 @@ subroutine calc_dt_kernel( x, rho, rhou, dtmin,idx)
   dtk = cfl*(x(OPS_ACC_MD1(3,0,0,1))-x(OPS_ACC_MD1(3,0,0,0))) / &
         (abs(uav(3))+soundspeed)  ! TODO - where to calc speed of sound
 
-  write(*,'(4f17.9,3i2)') rhou(OPS_ACC_MD3(1,1,0,0)),rho(OPS_ACC2(1,0,0)), &
-                      rhou(OPS_ACC_MD3(1,0,0,0)),rho(OPS_ACC2(0,0,0)), &
-                      idx
-
   ! Take min dt from i,j,k directions
-  dtmin = min(dtmin,min(dti,dtj,dtk))
+  work(OPS_ACC4(0,0,0)) = min(dti,dtj,dtk)
 
 end subroutine

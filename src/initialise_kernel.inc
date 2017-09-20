@@ -10,10 +10,10 @@ subroutine initialise_kernel( x, rho, rhou, Et, idx)
   x(OPS_ACC_MD1(3,0,0,0)) = zmin + dz * (idx(3)-1.0_8)
   
   ! rho
-  rho(OPS_ACC2(0,0,0))  = 1.177_8
+  rho(OPS_ACC2(0,0,0))  = 2.0_8
 
   ! rho*u
-  rhou(OPS_ACC_MD3(1,0,0,0)) = x(OPS_ACC_MD1(1,0,0,0))
+  rhou(OPS_ACC_MD3(1,0,0,0)) = 1.0_8 !x(OPS_ACC_MD1(1,0,0,0))
 
   ! rho*v
   rhou(OPS_ACC_MD3(2,0,0,0)) = 0.0_8
