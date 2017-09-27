@@ -33,9 +33,9 @@ ifeq ($(OPS_COMPILER),intel)
   CC 		:= icc -std=c99
 ifdef DEBUG
   #OPT	 	:= -O3 -g -xAVX -vec-report2 #-xAVX
-  OPT	 	:= -O0 -g -traceback -check bounds
+  OPT	 	:= -O0 -g 
 else
-  OPT	 	:= -O3 -qopt-report #-xAVX
+  OPT	 	:= -O3 -qopt-report #-axCORE-AVX2 -xSSE4.2#-xAVX
 endif
   OMPFLAGS  	= -qopenmp #-openmp-report2
   CCFLAGS       := $(OPT) #-Wall -Werror -wd981
@@ -48,21 +48,22 @@ endif
   MPICXX 	:= $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIF90 	:= $(MPI_INSTALL_PATH)/bin/mpif90
   MPIFLAGS 	:= $(CXXFLAGS) -DMPICH_IGNORE_CXX_SEEK -DMPICH_SKIP_MPICXX
-  TARGETS	:= clean cfd4t_seq cfd4t_mpi cfd4t_openmp cfd4t_mpi_openmp cfd4t_cuda cfd4t_mpi_cuda #cfd4t_openacc cfd4t_mpi_openacc
+  TARGETS	:= clean cfd4t_seq cfd4t_mpi #cfd4t_openmp cfd4t_mpi_openmp cfd4t_cuda cfd4t_mpi_cuda #cfd4t_openacc cfd4t_mpi_openacc
 else
 ifeq ($(OPS_COMPILER),pgi)
 ifdef DEBUG
-  OPT           := -O0 -g -Minline -Kieee #-Minform=inform -Minfo=all
+	OPT           := -O0 -g -Minline -Kieee -Minform=inform -Minfo=all -traceback -Mbounds 
+
 else
   OPT           := -O3 -Kieee -Minline #-Minform=inform -Minfo=all
 endif
   OMPFLAGS      := -mp
   OpenACCFLAGS	:= -acc -ta=tesla:cc35 -ta=tesla:maxregcount:64 #-Minline
-  CCFLAGS       := $(OPT) #-Wall -Werror -wd981
+  CCFLAGS       := $(OPT) -Wall -Werror -wd981
   CXX           := pgc++
   CXXFLAGS      := $(CCFLAGS)
   CUDA_ALIGN_FLAG := -D__x86_64 -D__align__\(n\)=__attribute__\(\(aligned\(n\)\)\) -D__location__\(a\)=__annotate__\(a\) -DCUDARTAPI=
-  CXXLINK       := -lstdc++ -lgcc_s -pgcpplibs
+  CXXLINK       := -lstdc++ -lgcc_s -pgc++libs
   FC            := pgfortran $(PGI_CUDA_FORT_FLAGS)
   FFLAGS        := $(OPT) -ldl
   MPICC         := $(MPI_INSTALL_PATH)/bin/mpicc -std=c99
@@ -70,7 +71,7 @@ endif
   MPIF90 	:= $(MPI_INSTALL_PATH)/bin/mpif90 $(PGI_CUDA_FORT_FLAGS)
   MPIFLAGS      := $(FFLAGS)
   CUDAFOR       = -DOPS_WITH_CUDAFOR
-  TARGETS       := clean cfd4t_seq cfd4t_mpi cfd4t_openmp cfd4t_mpi_openmp cfd4t_cuda cfd4t_mpi_cuda #cfd4t_openacc cfd4t_mpi_openacc
+  TARGETS       := clean cfd4t_seq cfd4t_mpi #cfd4t_openmp cfd4t_mpi_openmp cfd4t_cuda cfd4t_mpi_cuda #cfd4t_openacc cfd4t_mpi_openacc
 else
 print:
 	@echo "unrecognised value for OPS_COMPILER"
@@ -87,20 +88,32 @@ cfd4t_seq: main_ops.F90 constants.F90
 	$(FC) $(OPT) $(FMODS) -c constants.F90 ./MPI/initialise_kernel_seq_kernel.F90                         \
 	./MPI/conres_kernel_seq_kernel.F90 ./MPI/momres_kernel_seq_kernel.F90                                 \
 	./MPI/energyres_kernel_seq_kernel.F90 ./MPI/save_kernel_seq_kernel.F90                                \
-	./MPI/calc_dt_kernel_seq_kernel.F90                                                                   \
+	./MPI/calc_dt_kernel_seq_kernel.F90 ./MPI/updateRK_kernel_seq_kernel.F90                              \
+	./MPI/update_kernel_seq_kernel.F90 ./MPI/print_kernel_seq_kernel.F90                                  \
+	./MPI/filter_kernel_seq_kernel.F90                                                                    \
 	main_ops.F90
 	$(MPIF90) $(OPT) $(FFLAGS) $(FLINK) main_ops.o constants.o                                            \
 	initialise_kernel_seq_kernel.o conres_kernel_seq_kernel.o momres_kernel_seq_kernel.o                  \
 	energyres_kernel_seq_kernel.o save_kernel_seq_kernel.o                                                \
-	calc_dt_kernel_seq_kernel.o                                                                           \
+	calc_dt_kernel_seq_kernel.o updateRK_kernel_seq_kernel.o                                              \
+    update_kernel_seq_kernel.o print_kernel_seq_kernel.o                                                  \
+	filter_kernel_seq_kernel.o                                                                            \
 	 -o ../bin/cfd4t_seq -lops_for_seq -lops_hdf5 $(HDF5_LIB)
 
 cfd4t_openmp: main_ops.F90 constants.F90
 	$(FC) $(OPT) $(FMODS) $(OMPFLAGS) -c constants.F90 ./MPI_OpenMP/initialise_kernel_omp_kernel.F90      \
-	./MPI_OpenMP/dsdx_kernel_omp_kernel.F90 ./MPI_OpenMP/dvdx_kernel_omp_kernel.F90                       \
+	./MPI_OpenMP/conres_kernel_omp_kernel.F90    ./MPI_OpenMP/momres_kernel_omp_kernel.F90                \
+	./MPI_OpenMP/energyres_kernel_omp_kernel.F90 ./MPI_OpenMP/save_kernel_omp_kernel.F90                  \
+	./MPI_OpenMP/calc_dt_kernel_omp_kernel.F90   ./MPI_OpenMP/updateRK_kernel_omp_kernel.F90              \
+	./MPI_OpenMP/update_kernel_omp_kernel.F90    ./MPI_OpenMP/print_kernel_omp_kernel.F90                 \
+	./MPI_OpenMP/filter_kernel_omp_kernel.F90                                                             \
 	main_ops.F90
 	$(MPIF90) $(OPT) $(FLINK) $(FFLAGS) $(OMPFLAGS) main_ops.o constants.o                                \
-	initialise_kernel_omp_kernel.o dsdx_kernel_omp_kernel.o dvdx_kernel_omp_kernel.o                      \
+    initialise_kernel_seq_kernel.o conres_kernel_seq_kernel.o momres_kernel_omp_kernel.o                  \
+	energyres_kernel_omp_kernel.o save_kernel_omp_kernel.o                                                \
+	calc_dt_kernel_omp_kernel.o updateRK_kernel_omp_kernel.o                                              \
+    update_kernel_omp_kernel.o print_kernel_omp_kernel.o                                                  \
+	filter_kernel_omp_kernel.o                                                                            \
     -o ../bin/cfd4t_openmp -lops_for_seq -lops_hdf5 $(HDF5_LIB)
 
 cfd4t_cuda: main_ops.F90 constants.F90
@@ -119,12 +132,16 @@ cfd4t_mpi: main_ops.F90 constants.F90
 	$(MPIF90) $(OPT) $(FMODS) -DOPS_MPI -c constants.F90 ./MPI/initialise_kernel_seq_kernel.F90           \
 	./MPI/conres_kernel_seq_kernel.F90 ./MPI/momres_kernel_seq_kernel.F90                                 \
 	./MPI/energyres_kernel_seq_kernel.F90 ./MPI/save_kernel_seq_kernel.F90                                \
-	./MPI/calc_dt_kernel_seq_kernel.F90                                                                   \
+	./MPI/calc_dt_kernel_seq_kernel.F90 ./MPI/updateRK_kernel_seq_kernel.F90                              \
+	./MPI/update_kernel_seq_kernel.F90 ./MPI/print_kernel_seq_kernel.F90                                  \
+	./MPI/filter_kernel_seq_kernel.F90                                                                    \
 	main_ops.F90
 	$(MPIF90) $(OPT) $(MPIFLAGS) $(FLINK) -DOPS_MPI main_ops.o constants.o                                \
 	initialise_kernel_seq_kernel.o conres_kernel_seq_kernel.o momres_kernel_seq_kernel.o                  \
 	energyres_kernel_seq_kernel.o save_kernel_seq_kernel.o                                                \
-	calc_dt_kernel_seq_kernel.o                                                                           \
+	calc_dt_kernel_seq_kernel.o updateRK_kernel_seq_kernel.o                                              \
+    update_kernel_seq_kernel.o print_kernel_seq_kernel.o                                                  \
+	filter_kernel_seq_kernel.o                                                                            \
 	-o ../bin/cfd4t_mpi -lops_for_mpi $(HDF5_LIB)
 
 cfd4t_mpi_openmp: main_ops.F90 constants.F90

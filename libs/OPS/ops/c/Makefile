@@ -49,7 +49,7 @@ ifeq ($(OPS_COMPILER),intel)
 ifdef DEBUG
   CCFLAGS 	:= -O0 -g
 else
-  CCFLAGS 	:= -O3 -xHost #-qopenmp #vec-report -xAVX
+  CCFLAGS 	:= -O3 -xHost -qopenmp -axCORE-AVX2 -xSSE4.2 #vec-report -xAVX
 endif
   CXX 		:= icpc
   CXXFLAGS 	:= $(CCFLAGS)
@@ -73,7 +73,7 @@ else
 ifeq ($(OPS_COMPILER),pgi)
   CC 		:= pgcc -c99
 ifdef DEBUG
-  CCFLAGS 	:= -O0 -g
+  CCFLAGS 	:= -O0 -g -traceback
 else
 #  CCFLAGS 	:= -O3
   CCFLAGS 	:= -O2 -fastsse -gopt -Mipa=fast #-Mlist #-mp=nonuma -Kieee
@@ -148,7 +148,7 @@ endif
 
 .PHONY: clean mklib
 
-all: clean core hdf5_seq seq mpi cuda mpi_cuda opencl mpi_opencl
+all: clean core hdf5_seq seq mpi #cuda mpi_cuda opencl mpi_opencl
 
 mklib:
 	@mkdir -p $(LIB) $(OBJ)

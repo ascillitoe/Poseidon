@@ -1,5 +1,7 @@
 subroutine initialise_kernel( x, rho, rhou, Et, idx)
+
   implicit none
+
   integer (kind=4), DIMENSION(3), INTENT(IN) :: idx
   real (kind=8), DIMENSION(3) :: x, rhou
   real (kind=8), DIMENSION(1) :: rho, Et
@@ -10,10 +12,14 @@ subroutine initialise_kernel( x, rho, rhou, Et, idx)
   x(OPS_ACC_MD1(3,0,0,0)) = zmin + dz * (idx(3)-1.0_8)
   
   ! rho
-  rho(OPS_ACC2(0,0,0))  = 2.0_8
+  if (x(OPS_ACC_MD1(1,0,0,0)).lt.0.25_8) then
+    rho(OPS_ACC2(0,0,0))  = 1.0_8
+  else
+    rho(OPS_ACC2(0,0,0))  = 1.0_8
+  endif
 
   ! rho*u
-  rhou(OPS_ACC_MD3(1,0,0,0)) = 1.0_8 !x(OPS_ACC_MD1(1,0,0,0))
+  rhou(OPS_ACC_MD3(1,0,0,0)) = 1.0_8
 
   ! rho*v
   rhou(OPS_ACC_MD3(2,0,0,0)) = 0.0_8
@@ -22,6 +28,6 @@ subroutine initialise_kernel( x, rho, rhou, Et, idx)
   rhou(OPS_ACC_MD3(3,0,0,0)) = 0.0_8
 
   ! Et
-  Et(OPS_ACC4(0,0,0))   = 10.0_8
+  Et(OPS_ACC4(0,0,0))   = 1.0_8
 
 end subroutine

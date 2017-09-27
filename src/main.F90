@@ -15,13 +15,14 @@
 program main
 
   use OPS_Fortran_Reference
-  use OPS_FORTRAN_HDF5_DECLARATIONS
+  !use OPS_FORTRAN_HDF5_DECLARATIONS
   use OPS_CONSTANTS
 
   use, intrinsic :: ISO_C_BINDING
 
   implicit none
 
+  intrinsic :: sqrt, real
 
 ! -----------------------------------------------------------------------------
 ! Read in hdf5 grid and flow files
@@ -38,21 +39,17 @@ program main
                                       1,0,0, -1, 0, 0, &
                                       0,1,0,  0,-1, 0, &
                                       0,0,1,  0, 0,-1 /
-  integer S3D_000_0P1_array(12) / 0,0,0,  & ! 2nd order i-i+1
-                                  1,0,0,  &
-                                  0,1,0,  &
-                                  0,0,1  /
 
   type(ops_stencil) :: S1D_000
   type(ops_stencil) :: S3D_000_0M1_0P1
-  type(ops_stencil) :: S3D_000_0P1
 
 ! ops datasets
   type(ops_dat) :: x
   type(ops_dat) :: rho_s, rhou_s, Et_s
+  type(ops_dat) :: rho_filt, rhou_filt, Et_filt
   type(ops_dat) :: rho, rhou, Et
   type(ops_dat) :: rho_res, rhou_res, Et_res
-  type(ops_dat) :: mul, mut, work
+  type(ops_dat) :: mul, mut
 
 ! ops_reduction
   type(ops_reduction) :: dtmin
@@ -65,7 +62,7 @@ program main
   integer d_m(3) /-1,-1,-1/  !max halo depths for the dat in the negative direction
 
 ! Mesh size
-  integer size(3) / 16,16,16 /
+  integer size(3) / 20,20,20 /
 
 ! base
   integer base(3) /1,1,1/ ! this is in fortran indexing
@@ -83,37 +80,49 @@ program main
   real(kind=c_double) :: endTime = 0
 
 ! Local variables
-  real(8) dt
+  real(8) :: a1(3), a2(3)   ! RK constants
+  real(8) :: dt
+  integer nt, nrk
   character*132 line
 
 ! Initialise constants
-  xmin = -1.0_8
-  ymin = -1.0_8
-  zmin = -1.0_8
-  xmax =  1.0_8
-  ymax =  1.0_8
-  zmax =  1.0_8
+  xmin = 0.0_8
+  ymin = 0.0_8
+  zmin = 0.0_8
+  xmax = 1.0_8
+  ymax = 1.0_8
+  zmax = 1.0_8
 
   dx = (xmax-xmin)/(size(1)-1.0_8)
   dy = (ymax-ymin)/(size(2)-1.0_8)
   dz = (zmax-zmin)/(size(3)-1.0_8)
 
-  totaltime = 10.0_8
-  cfl       = 1.0_8
+  totaltime = 100.0_8
+  ntmax     = 1
+  phi       = 0.25
+  cfl       = 0.5_8
+  a1 = (/ 2.0_8/3.0_8, 5.0_8/12.0_8, 3.0_8/5.0_8 /)
+  a2 = (/ 1.0_8/4.0_8, 3.0_8/20.0_8, 3.0_8/5.0_8 /)
+
 
 ! ---- Initialisation --------------------------------------------------------
 ! OPS initialisation
   call ops_init(5)
-         
+
 ! ---- OPS Declarations-------------------------------------------------------
 ! declare block
+  write (line,*) NEW_LINE('A') // 'Declaring block'
+  print*, line
   call ops_decl_block(3, grid, "grid")
 
 ! declare stencils
+  write (line,*) NEW_LINE('A') // 'Declaring stencils'
+  print*, line
   call ops_decl_stencil( 3,  1, S1D_000_array        , S1D_000        , "000")
   call ops_decl_stencil( 3,  7, S3D_000_0M1_0P1_array, S3D_000_0M1_0P1, "000:100:-100:010:0-10:001:00-1")
-  call ops_decl_stencil( 3,  4, S3D_000_0P1_array, S3D_000_0P1, "000:100:010:001")
 
+  write (line,*) NEW_LINE('A') // 'Declaring datasets'
+  print*, line
   call ops_decl_dat(grid, 3, size, base, d_m, d_p, temp,     x, "real(8)",     "x")
 
   call ops_decl_dat(grid, 1, size, base, d_m, d_p, temp,  rho_s, "real(8)",  "rho_s")
@@ -128,20 +137,26 @@ program main
   call ops_decl_dat(grid, 3, size, base, d_m, d_p, temp, rhou_res, "real(8)", "rhou_res")
   call ops_decl_dat(grid, 1, size, base, d_m, d_p, temp,   Et_res, "real(8)", "Et_res")
 
+  call ops_decl_dat(grid, 1, size, base, d_m, d_p, temp,  rho_filt, "real(8)", "rho_filt")
+  call ops_decl_dat(grid, 3, size, base, d_m, d_p, temp, rhou_filt, "real(8)", "rhou_filt")
+  call ops_decl_dat(grid, 1, size, base, d_m, d_p, temp,   Et_filt, "real(8)", "Et_filt")
+
   call ops_decl_dat(grid, 1, size, base, d_m, d_p, temp,  mul, "real(8)",  "mul")
   call ops_decl_dat(grid, 1, size, base, d_m, d_p, temp,  mut, "real(8)",  "mut")
-  call ops_decl_dat(grid, 1, size, base, d_m, d_p, temp, work, "real(8)", "work")
 
 ! declare halos for periodics
+  write (line,*) NEW_LINE('A') // 'Declaring halos'
+  print*, line
+
 ! i-dir periodics: i=I-2 to i=1  and  i=3 to i=I
-  halo_iter(1:3)  = (/      1,size(2),size(3) /)
-  base_from(1:3)  = (/      3,      1,      1 /)
-  base_to(1:3)    = (/size(1),      1,      1 /)
-  dir_from(1:3)   = (/      1,      2,      3 /)
-  dir_to(1:3)     = (/      1,      2,      3 /)
-  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(1))
-  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(2))
-  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(3))
+  halo_iter(1:3)  = (/      1,size(2)-2,size(3)-2 /)
+  base_from(1:3)  = (/      3,        2,        2 /)
+  base_to(1:3)    = (/size(1),        2,        2 /)
+  dir_from(1:3)   = (/      1,        2,        3 /)
+  dir_to(1:3)     = (/      1,        2,        3 /)
+  call ops_decl_halo( rho,  rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(1))
+  call ops_decl_halo(rhou, rhou, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(2))
+  call ops_decl_halo(  Et,   Et, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(3))
   base_from(1) = size(1)-2
   base_to(1)   = 1
   call ops_decl_halo( rho,  rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(4))
@@ -149,45 +164,52 @@ program main
   call ops_decl_halo(  Et,   Et, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(6))
 
 ! j-dir periodics: j=J-2 to j=1  and  j=3 to j=J
-  halo_iter(1:3)  = (/ size(1),      1,size(3) /)
-  base_from(1:3)  = (/       1,      3,      1 /)
-  base_to(1:3)    = (/       1,size(2),      1 /)
-  dir_from(1:3)   = (/       1,      2,      3 /)
-  dir_to(1:3)     = (/       1,      2,      3 /)
-  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(7))
-  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(8))
-  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(9))
+  halo_iter(1:3)  = (/ size(1)-2,      1,size(3)-2 /)
+  base_from(1:3)  = (/         2,      3,        2 /)
+  base_to(1:3)    = (/         2,size(2),        2 /)
+  dir_from(1:3)   = (/         1,      2,        3 /)
+  dir_to(1:3)     = (/         1,      2,        3 /)
+  call ops_decl_halo( rho,  rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(7))
+  call ops_decl_halo(rhou, rhou, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(8))
+  call ops_decl_halo(  Et,   Et, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(9))
   base_from(2) = size(2)-2
   base_to(2)   = 1
-  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(10))
-  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(11))
-  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(12))
+  call ops_decl_halo( rho,  rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(10))
+  call ops_decl_halo(rhou, rhou, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(11))
+  call ops_decl_halo(  Et,   Et, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(12))
 
 ! k-dir periodics: k=K-2 to k=1  and  k=3 to k=K
-  halo_iter(1:3)  = (/size(1),size(2),      1 /)
-  base_from(1:3)  = (/      1,      1,      3 /)
-  base_to(1:3)    = (/      1,      1,size(3) /)
-  dir_from(1:3)   = (/      1,      2,      3 /)
-  dir_to(1:3)     = (/      1,      2,      3 /)
-  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(13))
-  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(14))
-  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(15))
+  halo_iter(1:3)  = (/size(1)-2,size(2)-2,      1 /)
+  base_from(1:3)  = (/        2,        2,      3 /)
+  base_to(1:3)    = (/        2,        2,size(3) /)
+  dir_from(1:3)   = (/        1,        2,      3 /)
+  dir_to(1:3)     = (/        1,        2,      3 /)
+  call ops_decl_halo( rho,  rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(13))
+  call ops_decl_halo(rhou, rhou, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(14))
+  call ops_decl_halo(  Et,   Et, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(15))
   base_from(3) = size(3)-2
   base_to(3)   = 1
-  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(16))
-  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(17))
-  call ops_decl_halo(rho, rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(18))
+  call ops_decl_halo( rho,  rho, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(16))
+  call ops_decl_halo(rhou, rhou, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(17))
+  call ops_decl_halo(  Et,   Et, halo_iter, base_from, base_to, dir_from, dir_to, halo_array(18))
 
 
   call ops_decl_halo_group(18,halo_array, halogrp_per)
 
  !reduction handle for dtmin
+  write (line,*) NEW_LINE('A') // 'Declaring reduction handles'
+  print*, line
+
   call ops_decl_reduction_handle(8, dtmin, "real(8)", "dtmin")
 
  !---- Partition the mesh ----------------------------------------------------
-  call ops_partition("3D_block_decompose")
-  !call ops_diagnostic_output()
+  write (line,*) NEW_LINE('A') // 'Partitioning the mesh'
+  print*, line
 
+  call ops_partition("3D_block_decompose")
+  call ops_diagnostic_output()
+
+  
 ! -----------------------------------------------------------------------------
 ! Initialise mesh and flowfield (for now...)
 ! -----------------------------------------------------------------------------
@@ -200,7 +222,6 @@ program main
                      ops_arg_idx())
   call ops_halo_transfer(halogrp_per)
 
-
 ! -----------------------------------------------------------------------------
 ! Main computational loop
 ! -----------------------------------------------------------------------------
@@ -209,7 +230,7 @@ program main
 
   nt = 1
   iter_range(1:6) = (/ 2,size(1)-1, 2,size(2)-1, 2,size(3)-1 /)
-  do while (simtime.le.totaltime)
+  do while (simtime.le.totaltime .and. nt.le.ntmax)
    
 !   Find timestep based on CFL condition
 !   ------------------------------------
@@ -232,11 +253,11 @@ program main
             & ops_arg_dat(    Et, 1, S1D_000, "real(8)", OPS_READ ))
 
     write(line,'(a,i8,3g18.9)') NEW_LINE('A') // 'nt, simtime, dt =', nt, simtime, dt
-    call ops_printf(line)
+    print*, line
 
 !   Start RK loop
 !   -------------
-    do nrk = 1,3
+    do nrk = 1,1 !3 for debug
 
 !     Apply periodic boundary conditions
 !     ----------------------------------
@@ -248,7 +269,9 @@ program main
       call ops_par_loop(conres_kernel, "conres_kernel", grid, 3, iter_range, &
                         ops_arg_dat(      x, 3, S3D_000_0M1_0P1, "real(8)",  OPS_READ), &
                         ops_arg_dat(   rhou, 3, S3D_000_0M1_0P1, "real(8)",  OPS_READ), &
-                        ops_arg_dat(rho_res, 1, S1D_000        , "real(8)", OPS_WRITE)  )
+                        ops_arg_dat(rho_res, 1, S1D_000        , "real(8)", OPS_WRITE), &
+                        ops_arg_idx())
+
 
       ! momentum eqns: d(rho*u_i*u_j - P_ij)/dx_i terms (TODO - need to calculate P_ij stress tensor first)
       call ops_par_loop(momres_kernel, "momres_kernel", grid, 3, iter_range, &
@@ -265,16 +288,62 @@ program main
                         ops_arg_dat(    Et, 1, S3D_000_0M1_0P1, "real(8)",  OPS_READ), &
                         ops_arg_dat(Et_res, 1, S1D_000        , "real(8)", OPS_WRITE)  )
 
-!     Apply filter (here or after update?)
-!     ------------
-
+      iter_range(1:6) = (/ 1,size(1), 1,size(2), 1,size(3) /)
+     call ops_par_loop(print_kernel, "print_kernel", grid, 3, iter_range, &
+                     ops_arg_dat( rho_res, 1, S1D_000, "real(8)", OPS_READ), &
+                     ops_arg_dat(    rhou, 3, S1D_000, "real(8)", OPS_READ), &
+                     ops_arg_idx())
+     iter_range(1:6) = (/ 2,size(1)-1, 2,size(2)-1, 2,size(3)-1 /)
+     print*, ' '
+      
 !     RK update
 !     ---------
+      call ops_par_loop(updateRK_kernel, "updateRK_kernel", grid, 3, iter_range, &
+                        ops_arg_dat(     rho, 1, S1D_000, "real(8)", OPS_RW),    &
+                        ops_arg_dat(    rhou, 3, S1D_000, "real(8)", OPS_RW),    &
+                        ops_arg_dat(      Et, 1, S1D_000, "real(8)", OPS_RW),    &
+                        ops_arg_dat(   rho_s, 1, S1D_000, "real(8)", OPS_RW),    &
+                        ops_arg_dat(  rhou_s, 3, S1D_000, "real(8)", OPS_RW),    &
+                        ops_arg_dat(    Et_s, 1, S1D_000, "real(8)", OPS_RW),    &
+                        ops_arg_dat( rho_res, 1, S1D_000, "real(8)", OPS_READ),  &
+                        ops_arg_dat(rhou_res, 3, S1D_000, "real(8)", OPS_READ),  &
+                        ops_arg_dat(  Et_res, 1, S1D_000, "real(8)", OPS_READ),  &
+                        ops_arg_gbl( a1(nrk), 1,          "real(8)", OPS_READ),  &
+                        ops_arg_gbl( a2(nrk), 1,          "real(8)", OPS_READ),  &
+                        ops_arg_gbl(      dt, 1,          "real(8)", OPS_READ)   )
+     !TODO - declare a1 and a2 as ops gbls
+
+!!     Apply filter TODO (here or after update?) - simple 7 point average for now...
+!!     ------------
+!      call ops_par_loop(filter_kernel, "filter_kernel", grid, 3, iter_range,                &
+!                        ops_arg_dat(       rho, 1  , S3D_000_0M1_0P1, "real(8)",  OPS_RW),  &
+!                        ops_arg_dat(      rhou, 3  , S3D_000_0M1_0P1, "real(8)",  OPS_RW),  &
+!                        ops_arg_dat(        Et, 1  , S3D_000_0M1_0P1, "real(8)",  OPS_RW),  &
+!                        ops_arg_dat(  rho_filt, 1, S1D_000        , "real(8)",  OPS_WRITE), &
+!                        ops_arg_dat( rhou_filt, 3, S1D_000        , "real(8)",  OPS_WRITE), &
+!                        ops_arg_dat(   Et_filt, 1, S1D_000        , "real(8)",  OPS_WRITE)  )
+
     enddo
 
-!   Update to next timestep (RK loop eventually)
+!   Update to next timestep
 !   ----------------------- 
-    simtime = simtime + 0.1_8 !dt
+    call ops_par_loop(update_kernel, "update_kernel", grid, 3, iter_range,    &
+                      ops_arg_dat(     rho, 1, S1D_000, "real(8)", OPS_RW),   &
+                      ops_arg_dat(    rhou, 3, S1D_000, "real(8)", OPS_RW),   &
+                      ops_arg_dat(      Et, 1, S1D_000, "real(8)", OPS_RW),   &
+                      ops_arg_dat( rho_res, 1, S1D_000, "real(8)", OPS_READ), &
+                      ops_arg_dat(rhou_res, 3, S1D_000, "real(8)", OPS_READ), &
+                      ops_arg_dat(  Et_res, 1, S1D_000, "real(8)", OPS_READ), &
+                      ops_arg_gbl(      dt, 1,          "real(8)", OPS_READ)  )
+
+!      iter_range(1:6) = (/ 1,size(1), 1,size(2), 1,size(3) /)
+!     call ops_par_loop(print_kernel, "print_kernel", grid, 3, iter_range, &
+!                     ops_arg_dat( rho_res, 1, S1D_000, "real(8)", OPS_READ), &
+!                     ops_arg_dat(     rho, 1, S1D_000, "real(8)", OPS_READ), &
+!                     ops_arg_idx())
+!     iter_range(1:6) = (/ 2,size(1)-1, 2,size(2)-1, 2,size(3)-1 /)
+
+    simtime = simtime + dt
     nt      = nt + 1
   enddo
 
@@ -284,16 +353,24 @@ program main
   call ops_print_dat_to_txtfile(       x,        "x.dat")
   call ops_print_dat_to_txtfile(     rho,      "rho.dat")
   call ops_print_dat_to_txtfile( rho_res,  "rho_res.dat")
-  call ops_print_dat_to_txtfile(rhou_res, "rhou_res.dat")
-  call ops_print_dat_to_txtfile(  Et_res,   "Et_res.dat")
+  call ops_print_dat_to_txtfile(     rhou,      "rhou.dat")
+  call ops_print_dat_to_txtfile( rhou_res,  "rhou_res.dat")
+  call ops_print_dat_to_txtfile(     Et,      "Et.dat")
+  call ops_print_dat_to_txtfile( Et_res,  "Et_res.dat")
 
-  call ops_fetch_block_hdf5_file(  grid, "test.h5")
-  call ops_fetch_dat_hdf5_file(     rho, "test.h5")
-  call ops_fetch_dat_hdf5_file(    rhou, "test.h5")
-  call ops_fetch_dat_hdf5_file(      Et, "test.h5")
-  call ops_fetch_dat_hdf5_file( rho_res, "test.h5")
-  call ops_fetch_dat_hdf5_file(rhou_res, "test.h5")
-  call ops_fetch_dat_hdf5_file(  Et_res, "test.h5")
+!  call ops_print_dat_to_txtfile(       x,        "x.dat")
+!  call ops_print_dat_to_txtfile(     rho,      "rho.dat")
+!  call ops_print_dat_to_txtfile( rho_res,  "rho_res.dat")
+!  call ops_print_dat_to_txtfile(rhou_res, "rhou_res.dat")
+!  call ops_print_dat_to_txtfile(  Et_res,   "Et_res.dat")
+
+!  call ops_fetch_block_hdf5_file(  grid, "test.h5")
+!  call ops_fetch_dat_hdf5_file(     rho, "test.h5")
+!  call ops_fetch_dat_hdf5_file(    rhou, "test.h5")
+!  call ops_fetch_dat_hdf5_file(      Et, "test.h5")
+!  call ops_fetch_dat_hdf5_file( rho_res, "test.h5")
+!  call ops_fetch_dat_hdf5_file(rhou_res, "test.h5")
+!  call ops_fetch_dat_hdf5_file(  Et_res, "test.h5")
 
 ! -----------------------------------------------------------------------------
 ! Output runtime and exit
@@ -301,7 +378,7 @@ program main
   call ops_timers(endTime)
 
   write (line,*) NEW_LINE('A') // 'Max total runtime =', endTime - startTime,'seconds'
-  call ops_printf(line)
+  print*, line
 
   call ops_exit( )
 

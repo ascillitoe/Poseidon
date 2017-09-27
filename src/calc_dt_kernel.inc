@@ -1,6 +1,7 @@
 subroutine calc_dt_kernel( x, rho, rhou, dtmin)
 
   implicit none
+
   real (kind=8), DIMENSION(3), INTENT(IN) :: x, rhou
   real (kind=8), DIMENSION(1), INTENT(IN) :: rho
   real (kind=8), DIMENSION(1) :: dtmin
@@ -9,7 +10,7 @@ subroutine calc_dt_kernel( x, rho, rhou, dtmin)
   real (kind=8) soundspeed   ! TODO - calc soundspeed properly
   integer d
 
-  soundspeed = 0.0_8
+  soundspeed = 1.0_8
 
   ! Average velocities across stencil
   do d = 1,3

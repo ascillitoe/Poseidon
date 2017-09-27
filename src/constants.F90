@@ -12,26 +12,24 @@ MODULE OPS_CONSTANTS
 
 !   ---- Temporary -----------------------------------------------------------
     real(8),constant :: dx, dy, dz
-    real(8),constant :: xmin,xmax,ymin,ymax,zmin,zmax
+    real(8),constant :: xmin,xmax,ymin,ymax,zmin,zmax, phi
     integer,constant :: xhalo, yhalo, zhalo
 
 !   ---- Runge-Kutta ---------------------------------------------------------
     real(8),constant :: alfas, betas, cfl, totaltime
     real(8) simtime
-
-    integer,constant :: nrk
-    integer nt
+    integer ntmax
 
 #else
 
 !   ---- Temporary -----------------------------------------------------------
     real(8) :: dx, dy, dz
-    real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
+    real(8) :: xmin,xmax,ymin,ymax,zmin,zmax, phi
     integer :: xhalo, yhalo, zhalo
 
 !   ---- Runge-Kutta ---------------------------------------------------------
     real(8) :: alfas, betas, cfl, totaltime, simtime
-    integer :: nrk, nt
+    integer :: ntmax
 
 #endif
 
@@ -43,7 +41,7 @@ MODULE OPS_CONSTANTS
 ! dz        -- Grid spacing in z-direction
 
 ! ---- Runge-Kutta -----------------------------------------------------------
-! alfas     -- RK coeffs for inviscid fluxes
+! alfas     -- RK coeffs for inviscid fluxes  ! TODO - a1/a2 defined in main.F90 for now
 ! betas     -- RK coeffs for viscous fluxes
 ! cfl       -- CFL number
 ! nrk       -- Number of RK steps

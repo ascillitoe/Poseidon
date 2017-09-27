@@ -43,7 +43,7 @@ ifeq ($(OPS_COMPILER),intel)
 ifdef DEBUG
   OPT	 	= -O0 -g
 else
-  OPT	 	= -O3 #vec-report -xAVX
+  OPT	 	= -O3 -qopenmp #-axCORE-AVX2 -xSSE4.2 #-vec-report -xAVX
 endif
   CCFLAGS       = $(OPT) -Wall #-Werror -wd981
   CXX 		= icpc
@@ -59,7 +59,7 @@ else
 ifeq ($(OPS_COMPILER),pgi)
   CC            = pgcc
 ifdef DEBUG
-  OPT           = -O0 -g
+  OPT           = -O0 -g -traceback
 else
   OPT           = -O3
 endif
@@ -76,7 +76,7 @@ endif
   MPICC         = $(MPI_INSTALL_PATH)/bin/mpicc
   MPICXX        = $(MPI_INSTALL_PATH)/bin/mpicxx
   MPIFLAGS      = $(CXXFLAGS)
-  TARGETS       = clean core f_seq f_mpi f_cuda f_mpi_cuda f_openacc
+  TARGETS       = clean core f_seq f_mpi #f_cuda f_mpi_cuda f_openacc
 else
 ifeq ($(OPS_COMPILER),xlp8)
   CC            = xlc_r
