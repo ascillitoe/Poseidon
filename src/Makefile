@@ -12,11 +12,11 @@ ifndef NV_ARCH
 endif
 ifeq ($(NV_ARCH),Fermi)
   CODE_GEN_CUDA=-gencode arch=compute_20,code=sm_21
-  PGI_CUDA_FORT_FLAGS=-Mcuda=cuda7.5,cc20
+  PGI_CUDA_FORT_FLAGS=#-Mcuda=cuda7.5,cc20
 else
 ifeq ($(NV_ARCH),Kepler)
   CODE_GEN_CUDA=-gencode arch=compute_35,code=sm_35
-  PGI_CUDA_FORT_FLAGS=-Mcuda=cuda7.5,cc35
+  PGI_CUDA_FORT_FLAGS=#-Mcuda=cuda7.5,cc35
 endif
 endif
 
@@ -33,9 +33,9 @@ ifeq ($(OPS_COMPILER),intel)
   CC 		:= icc -std=c99
 ifdef DEBUG
   #OPT	 	:= -O3 -g -xAVX -vec-report2 #-xAVX
-  OPT	 	:= -O0 -g 
+  OPT	 	:= -O0 -g -traceback
 else
-  OPT	 	:= -O3 -qopt-report #-axCORE-AVX2 -xSSE4.2#-xAVX
+  OPT	 	:= -O3 -qopt-report -axCORE-AVX2 -xSSE4.2#-xAVX
 endif
   OMPFLAGS  	= -qopenmp #-openmp-report2
   CCFLAGS       := $(OPT) #-Wall -Werror -wd981
@@ -89,15 +89,17 @@ cfd4t_seq: main_ops.F90 constants.F90
 	./MPI/conres_kernel_seq_kernel.F90 ./MPI/momres_kernel_seq_kernel.F90                                 \
 	./MPI/energyres_kernel_seq_kernel.F90 ./MPI/save_kernel_seq_kernel.F90                                \
 	./MPI/calc_dt_kernel_seq_kernel.F90 ./MPI/updateRK_kernel_seq_kernel.F90                              \
-	./MPI/update_kernel_seq_kernel.F90 ./MPI/print_kernel_seq_kernel.F90                                  \
-	./MPI/filter_kernel_seq_kernel.F90                                                                    \
+	./MPI/update_kernel_seq_kernel.F90 ./MPI/copy_kernel_seq_kernel.F90                                   \
+	./MPI/filter_kernel_seq_kernel.F90 ./MPI/profile_kernel_seq_kernel.F90                                \
+	./MPI/viscosity_kernel_seq_kernel.F90 ./MPI/stress_kernel_seq_kernel.F90                              \
 	main_ops.F90
 	$(MPIF90) $(OPT) $(FFLAGS) $(FLINK) main_ops.o constants.o                                            \
 	initialise_kernel_seq_kernel.o conres_kernel_seq_kernel.o momres_kernel_seq_kernel.o                  \
 	energyres_kernel_seq_kernel.o save_kernel_seq_kernel.o                                                \
 	calc_dt_kernel_seq_kernel.o updateRK_kernel_seq_kernel.o                                              \
-    update_kernel_seq_kernel.o print_kernel_seq_kernel.o                                                  \
-	filter_kernel_seq_kernel.o                                                                            \
+    update_kernel_seq_kernel.o copy_kernel_seq_kernel.o                                                   \
+	filter_kernel_seq_kernel.o profile_kernel_seq_kernel.o                                                \
+	viscosity_kernel_seq_kernel.o stress_kernel_seq_kernel.o                                              \
 	 -o ../bin/cfd4t_seq -lops_for_seq -lops_hdf5 $(HDF5_LIB)
 
 cfd4t_openmp: main_ops.F90 constants.F90
@@ -105,15 +107,17 @@ cfd4t_openmp: main_ops.F90 constants.F90
 	./MPI_OpenMP/conres_kernel_omp_kernel.F90    ./MPI_OpenMP/momres_kernel_omp_kernel.F90                \
 	./MPI_OpenMP/energyres_kernel_omp_kernel.F90 ./MPI_OpenMP/save_kernel_omp_kernel.F90                  \
 	./MPI_OpenMP/calc_dt_kernel_omp_kernel.F90   ./MPI_OpenMP/updateRK_kernel_omp_kernel.F90              \
-	./MPI_OpenMP/update_kernel_omp_kernel.F90    ./MPI_OpenMP/print_kernel_omp_kernel.F90                 \
-	./MPI_OpenMP/filter_kernel_omp_kernel.F90                                                             \
+	./MPI_OpenMP/update_kernel_omp_kernel.F90    ./MPI_OpenMP/copy_kernel_omp_kernel.F90                  \
+	./MPI_OpenMP/filter_kernel_omp_kernel.F90    ./MPI_OpenMP/profile_kernel_omp_kernel.F90               \
+	./MPI_OpenMP/viscosity_kernel_omp_kernel.F90 ./MPI_OpenMP/stress_kernel_omp_kernel.F90                \
 	main_ops.F90
 	$(MPIF90) $(OPT) $(FLINK) $(FFLAGS) $(OMPFLAGS) main_ops.o constants.o                                \
     initialise_kernel_seq_kernel.o conres_kernel_seq_kernel.o momres_kernel_omp_kernel.o                  \
 	energyres_kernel_omp_kernel.o save_kernel_omp_kernel.o                                                \
 	calc_dt_kernel_omp_kernel.o updateRK_kernel_omp_kernel.o                                              \
-    update_kernel_omp_kernel.o print_kernel_omp_kernel.o                                                  \
-	filter_kernel_omp_kernel.o                                                                            \
+    update_kernel_omp_kernel.o copy_kernel_omp_kernel.o                                                   \
+	filter_kernel_omp_kernel.o profile_kernel_omp_kernel.o                                                \
+	viscosity_kernel_omp_kernel.o stress_kernel_omp_kernel.o                                              \
     -o ../bin/cfd4t_openmp -lops_for_seq -lops_hdf5 $(HDF5_LIB)
 
 cfd4t_cuda: main_ops.F90 constants.F90
@@ -133,15 +137,17 @@ cfd4t_mpi: main_ops.F90 constants.F90
 	./MPI/conres_kernel_seq_kernel.F90 ./MPI/momres_kernel_seq_kernel.F90                                 \
 	./MPI/energyres_kernel_seq_kernel.F90 ./MPI/save_kernel_seq_kernel.F90                                \
 	./MPI/calc_dt_kernel_seq_kernel.F90 ./MPI/updateRK_kernel_seq_kernel.F90                              \
-	./MPI/update_kernel_seq_kernel.F90 ./MPI/print_kernel_seq_kernel.F90                                  \
-	./MPI/filter_kernel_seq_kernel.F90                                                                    \
+	./MPI/update_kernel_seq_kernel.F90 ./MPI/copy_kernel_seq_kernel.F90                                   \
+	./MPI/filter_kernel_seq_kernel.F90 ./MPI/profile_kernel_seq_kernel.F90                                \
+	./MPI/viscosity_kernel_seq_kernel.F90 ./MPI/stress_kernel_seq_kernel.F90                              \
 	main_ops.F90
 	$(MPIF90) $(OPT) $(MPIFLAGS) $(FLINK) -DOPS_MPI main_ops.o constants.o                                \
 	initialise_kernel_seq_kernel.o conres_kernel_seq_kernel.o momres_kernel_seq_kernel.o                  \
 	energyres_kernel_seq_kernel.o save_kernel_seq_kernel.o                                                \
 	calc_dt_kernel_seq_kernel.o updateRK_kernel_seq_kernel.o                                              \
-    update_kernel_seq_kernel.o print_kernel_seq_kernel.o                                                  \
-	filter_kernel_seq_kernel.o                                                                            \
+    update_kernel_seq_kernel.o copy_kernel_seq_kernel.o                                                   \
+	filter_kernel_seq_kernel.o profile_kernel_seq_kernel.o                                                \
+	viscosity_kernel_seq_kernel.o stress_kernel_seq_kernel.o                                              \
 	-o ../bin/cfd4t_mpi -lops_for_mpi $(HDF5_LIB)
 
 cfd4t_mpi_openmp: main_ops.F90 constants.F90

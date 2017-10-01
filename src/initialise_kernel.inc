@@ -15,19 +15,20 @@ subroutine initialise_kernel( x, rho, rhou, Et, idx)
   if (x(OPS_ACC_MD1(1,0,0,0)).lt.0.25_8) then
     rho(OPS_ACC2(0,0,0))  = 1.0_8
   else
-    rho(OPS_ACC2(0,0,0))  = 1.0_8
+    rho(OPS_ACC2(0,0,0))  = 0.5_8
   endif
 
   ! rho*u
-  rhou(OPS_ACC_MD3(1,0,0,0)) = 1.0_8
+  rhou(OPS_ACC_MD3(1,0,0,0)) = 1.0_8*rho(OPS_ACC2(0,0,0))
 
   ! rho*v
-  rhou(OPS_ACC_MD3(2,0,0,0)) = 0.0_8
+  rhou(OPS_ACC_MD3(2,0,0,0)) = 0.0_8*rho(OPS_ACC2(0,0,0))
 
   ! rho*w
-  rhou(OPS_ACC_MD3(3,0,0,0)) = 0.0_8
+  rhou(OPS_ACC_MD3(3,0,0,0)) = 0.0_8*rho(OPS_ACC2(0,0,0))
+
 
   ! Et
-  Et(OPS_ACC4(0,0,0))   = 1.0_8
+  Et(OPS_ACC4(0,0,0))   = 7.d4
 
 end subroutine

@@ -7,7 +7,7 @@ unset LD_LIBRARY_PATH
 
 #OPS specifics
 export OPS_COMPILER=intel
-export OPS_INSTALL_PATH=/home/ash/Documents/Projects/CFD4turbo/libs/OPS/ops
+export OPS_INSTALL_PATH=/home/ash/Documents/Projects/Poseidon/libs/OPS/ops
 
 #CUDA and NVIDIA OpenCL
 export PATH=/usr/local/cuda/bin:$PATH
@@ -26,5 +26,5 @@ export MPICH_CC=/opt/intel/bin/icc
 export MPICH_F90=/opt/intel/bin/ifort
 
 #Intel based HDF5
-export HDF5_INSTALL_PATH=/home/ash/Documents/Projects/CFD4turbo/libs/hdf5-1.8.19
-export LD_LIBRARY_PATH=/home/ash/Documents/Projects/CFD4turbo/libs/hdf5-1.8.19/lib:$LD_LIBRARY_PATH
+export HDF5_INSTALL_PATH=/home/ash/Documents/Projects/Poseidon/libs/hdf5-1.8.19
+export LD_LIBRARY_PATH=/home/ash/Documents/Projects/Poseidon/libs/hdf5-1.8.19/lib:$LD_LIBRARY_PATH
