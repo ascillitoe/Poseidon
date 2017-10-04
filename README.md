@@ -5,14 +5,15 @@ Poseidon - A high-order multi-block structured CFD code for executation on
 
 Author(s) - Ashley Scillitoe
 
-This is a multi-block structured CFD code using 6th order finite
+This is a multi-block structured CFD code using high-order finite
 differences and low storage RK to solve the compressible Navier-Stokes 
 equations. The code is made parallel using the open source OPS 
 framework (http://www.oerc.ox.ac.uk/projects/ops).
 
 History:
-16/09/17  - First build.                                             - as2341
-01/10/17  - Viscous terms added.                                     - as2341
+--------
+16/09/17  - First build.                                             - as2341  
+01/10/17  - Viscous terms added.                                     - as2341  
 
 
 Build Instructions

@@ -4,8 +4,8 @@
 !
 ! Author(s) - Ashley Scillitoe
 !
-! This is a multi-block structured CFD code using 6th order finite
-! differences and low storage RK to solve the compressible Navier-Stokes 
+! This is a multi-block structured CFD code using high order finite
+! differencing and low storage RK to solve the compressible Navier-Stokes 
 ! equations. The code is made parallel using the open source OPS 
 ! framework (http://www.oerc.ox.ac.uk/projects/ops).
 !
