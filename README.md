@@ -1,3 +1,6 @@
-# CFD4turbo
+# Poseidon
 
-I'm currently setting compiler and lib locations in libs/OPS/scripts/source_intellaptop. You'll need to change the absolute directories here. Probably a better way to do this but it is working for now!
+This is a (very) basic prototype for a high order structured CFD code built on top of the [OPS](https://github.com/OP-DSL/OPS) parallelisation library. It is no longer under active development.
+
+## Notes
+Compiler and lib locations are currently set in libs/OPS/scripts/source_intellaptop.
