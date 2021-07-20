@@ -1,9 +1,9 @@
 ! -----------------------------------------------------------------------------
-! CFD4turbo  - Compact Finite Differences for turbomachinery
+! Poseidon  - A high order CFD code
 !
 ! Author(s) - Ashley Scillitoe
 !
-! This is a multi-block structured CFD code using 6th order finite
+! This is a structured CFD code using 6th order finite
 ! differences and low storage RK to solve the compressible Navier-Stokes 
 ! equations. 
 !
